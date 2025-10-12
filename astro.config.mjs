@@ -5,6 +5,9 @@ import tailwind from '@astrojs/tailwind';
 
 const apiPort =
   Number.parseInt(process.env.API_PORT || process.env.PORT || '', 10) || 4001;
+const maxFiles =
+  Number.parseInt(process.env.PUBLIC_MAX_FILES || process.env.API_MAX_FILES || '', 10) ||
+  50;
 
 export default defineConfig({
   output: 'hybrid',
@@ -31,9 +34,7 @@ export default defineConfig({
       }
     },
     define: {
-      __REMOVE_BG_MAX_FILES__: JSON.stringify(
-        Number(process.env.REMOVE_BG_MAX_FILES || 50)
-      )
+      __AVATAR_MAX_FILES__: JSON.stringify(maxFiles)
     }
   }
 });

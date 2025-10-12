@@ -2,13 +2,14 @@
 /// <reference types="astro/client" />
 
 interface ImportMetaEnv {
-  readonly REMOVE_BG_API_KEY?: string;
-  readonly REMOVE_BG_API_URL?: string;
   readonly PUBLIC_MAX_FILES?: string;
+  readonly API_MAX_FILES?: string;
+  readonly API_PORT?: string;
+  readonly API_BODY_LIMIT?: string;
 }
 
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-declare const __REMOVE_BG_MAX_FILES__: number;
+declare const __AVATAR_MAX_FILES__: number;

@@ -7,8 +7,12 @@ import React, {
 } from 'react';
 import { twMerge } from 'tailwind-merge';
 import { loadFabric } from '../utils/fabricLoader.js';
+import {
+  blobToDataUrl,
+  removeBackgroundFromFile
+} from '../utils/backgroundRemoval.js';
 
-declare const __REMOVE_BG_MAX_FILES__: number;
+declare const __AVATAR_MAX_FILES__: number;
 
 type FabricType = Awaited<ReturnType<typeof loadFabric>>;
 type FabricCanvasInstance = InstanceType<FabricType['Canvas']>;
@@ -82,14 +86,14 @@ type ProgressState = {
   total: number;
   processed: number;
   exporting: boolean;
-  stage: 'idle' | 'removebg' | 'render' | 'export';
+  stage: 'idle' | 'removal' | 'render' | 'export';
 };
 
 const MAX_FILES =
   Number(
     import.meta.env.PUBLIC_MAX_FILES ??
-      (typeof __REMOVE_BG_MAX_FILES__ !== 'undefined'
-        ? __REMOVE_BG_MAX_FILES__
+      (typeof __AVATAR_MAX_FILES__ !== 'undefined'
+        ? __AVATAR_MAX_FILES__
         : 50)
   ) || 50;
 
@@ -127,6 +131,33 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
 const LS_SETTINGS_KEY = 'avatarkit.settings.v1';
 
 const patternCache = new Map<string, HTMLCanvasElement>();
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const { result } = reader;
+      if (typeof result === 'string') {
+        resolve(result);
+      } else {
+        reject(new Error('無法讀取檔案'));
+      }
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('讀取檔案失敗'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function getImageDimensions(dataUrl: string) {
+  return new Promise<{ width: number; height: number }>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    };
+    image.onerror = () => reject(new Error('取得圖片尺寸失敗'));
+    image.src = dataUrl;
+  });
+}
 
 function usePersistentSettings(): [WorkspaceSettings, (s: WorkspaceSettings) => void] {
   const [settings, setSettings] = useState<WorkspaceSettings>(() => {
@@ -166,7 +197,7 @@ function usePersistentSettings(): [WorkspaceSettings, (s: WorkspaceSettings) => 
 
 function formatProgressLabel(progress: ProgressState) {
   switch (progress.stage) {
-    case 'removebg':
+    case 'removal':
       return `去背中 ${progress.processed}/${progress.total}`;
     case 'render':
       return '載入畫布';
@@ -344,7 +375,6 @@ const Workspace: React.FC = () => {
   const fabricImageRef = useRef<FabricImageInstance | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const processingRef = useRef(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
 
   const selectedItem = useMemo(
     () => items.find((item) => item.id === selectedId) || items[0],
@@ -387,7 +417,6 @@ const Workspace: React.FC = () => {
       mounted = false;
       fabricCanvasRef.current?.dispose();
       fabricCanvasRef.current = null;
-      abortControllerRef.current?.abort();
     };
   }, []);
 
@@ -611,7 +640,7 @@ const Workspace: React.FC = () => {
       total,
       processed,
       exporting: prev.exporting,
-      stage: hasPending ? 'removebg' : prev.exporting ? 'export' : 'idle'
+      stage: hasPending ? 'removal' : prev.exporting ? 'export' : 'idle'
     }));
   }, [items]);
 
@@ -631,63 +660,30 @@ const Workspace: React.FC = () => {
         )
       );
 
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result;
-          if (typeof result === 'string') resolve(result);
-          else reject(new Error('無法讀取檔案'));
-        };
-        reader.onerror = () => reject(reader.error ?? new Error('讀取檔案失敗'));
-        reader.readAsDataURL(nextItem.file);
-      });
-
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === nextItem.id
-            ? {
-                ...item,
-                previewUrl: (() => {
-                  if (item.previewUrl.startsWith('blob:')) {
-                    URL.revokeObjectURL(item.previewUrl);
-                  }
-                  return base64;
-                })()
-              }
-            : item
-        )
-      );
-
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-
       try {
-        const response = await fetch('/api/remove-bg', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            image: base64,
-            size: 'auto',
-            bg: 'transparent',
-            format: 'png',
-            name: nextItem.originalName
-          }),
-          signal: controller.signal
-        });
+        const base64 = await readFileAsDataUrl(nextItem.file);
+        const dimensions = await getImageDimensions(base64).catch(() => null);
 
-        if (!response.ok) {
-          const errorJson = await response.json().catch(() => null);
-          throw new Error(
-            errorJson?.message ||
-              `remove.bg API 錯誤（${response.status}）`
-          );
-        }
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === nextItem.id
+              ? {
+                  ...item,
+                  previewUrl: (() => {
+                    if (item.previewUrl.startsWith('blob:')) {
+                      URL.revokeObjectURL(item.previewUrl);
+                    }
+                    return base64;
+                  })(),
+                  width: dimensions?.width ?? item.width,
+                  height: dimensions?.height ?? item.height
+                }
+              : item
+          )
+        );
 
-        const payload = (await response.json()) as {
-          dataUrl: string;
-          width: number | null;
-          height: number | null;
-        };
+        const processedBlob = await removeBackgroundFromFile(nextItem.file);
+        const processedDataUrl = await blobToDataUrl(processedBlob);
 
         setItems((prev) =>
           prev.map((item) =>
@@ -695,21 +691,17 @@ const Workspace: React.FC = () => {
               ? {
                   ...item,
                   status: 'ready',
-                  processedDataUrl: payload.dataUrl,
-                  width: payload.width ?? item.width,
-                  height: payload.height ?? item.height,
+                  processedDataUrl,
+                  width: dimensions?.width ?? item.width,
+                  height: dimensions?.height ?? item.height,
                   errorMessage: undefined
                 }
               : item
           )
         );
-
-        processingRef.current = false;
-        queueNextItem();
       } catch (error) {
-        processingRef.current = false;
         const message =
-          error instanceof Error ? error.message : 'remove.bg 呼叫失敗';
+          error instanceof Error ? error.message : '去背處理失敗，請稍後再試';
 
         setItems((prev) =>
           prev.map((item) =>
@@ -723,10 +715,8 @@ const Workspace: React.FC = () => {
               : item
           )
         );
-
-        queueNextItem();
       } finally {
-        abortControllerRef.current = null;
+        processingRef.current = false;
       }
     };
 
@@ -817,7 +807,6 @@ const Workspace: React.FC = () => {
   );
 
   const handleClearAll = useCallback(() => {
-    abortControllerRef.current?.abort();
     processingRef.current = false;
     setItems((prev) => {
       prev.forEach((item) => {

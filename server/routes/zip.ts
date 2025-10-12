@@ -35,6 +35,11 @@ function decodeData(data: string) {
   };
 }
 
+const maxFiles =
+  Number.parseInt(process.env.PUBLIC_MAX_FILES ?? '', 10) ||
+  Number.parseInt(process.env.API_MAX_FILES ?? '', 10) ||
+  50;
+
 const zipRoute: FastifyPluginAsync = async (fastify) => {
   fastify.post('/api/zip', async (request, reply) => {
     let payload: ZipRequest;
@@ -49,11 +54,11 @@ const zipRoute: FastifyPluginAsync = async (fastify) => {
       };
     }
 
-    if (payload.files.length > fastify.config.maxFiles) {
+    if (payload.files.length > maxFiles) {
       reply.status(400);
       return {
         error: 'too_many_files',
-        message: `一次最多 ${fastify.config.maxFiles} 個檔案`
+        message: `一次最多 ${maxFiles} 個檔案`
       };
     }
 

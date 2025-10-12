@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import configPlugin from './plugins/config.js';
 import routes from './routes/index.js';
 
 async function buildServer() {
@@ -15,7 +14,6 @@ async function buildServer() {
     methods: ['POST', 'GET', 'OPTIONS']
   });
 
-  await fastify.register(configPlugin);
   await fastify.register(routes);
 
   fastify.get('/healthz', async () => ({ status: 'ok' }));

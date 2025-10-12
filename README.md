@@ -1,11 +1,11 @@
 # AvatarKit
 
-批量去背與產出頭像的 Astro + Fastify 範例專案。使用者可一次匯入多張照片，後端串接 remove.bg API 自動去背，前端以 fabric.js 提供畫布編輯、批量控制與一鍵壓縮下載。
+批量去背與產出頭像的 Astro + Fastify 範例專案。使用者可一次匯入多張照片，前端使用 `@imgly/background-removal` 在瀏覽器直接去背，搭配 fabric.js 提供畫布編輯、批量控制與一鍵壓縮下載。
 
 ## 功能摘要
 
 - 上傳或拖曳最多 50 張圖片（JPEG/PNG/WebP，容量 ≤ 15 MB）。
-- 自動呼叫 `/api/remove-bg` 取得透明背景 PNG，失敗自動重試 2 次並可跳過單張。
+- 以 `@imgly/background-removal` 在前端即時產生透明背景 PNG，失敗自動重試 2 次並可跳過單張。
 - 畫布尺寸（512/800/1080/2048 px）、圓形/方形（圓角可調）與背景（透明/純色/漸層/圖樣）設定。
 - 批量控制所有素材的縮放、旋轉、X/Y 偏移；單張模式可額外微調，不影響其他圖片。
 - 方向鍵每次微移 1 px，Shift + 方向鍵為 10 px。
@@ -16,13 +16,12 @@
 ## 環境需求
 
 - Node.js 18.17 或更新版本。
-- remove.bg API Key。
 
 ## 安裝與啟動
 
 ```bash
 npm install
-cp .env.example .env  # 設定 remove.bg API Key
+cp .env.example .env  # 可視需求調整上傳/後端限制
 
 # 開發模式：同時啟動 Astro + Fastify
 npm run dev
@@ -32,7 +31,7 @@ npm run build
 npm run start
 ```
 
-Astro 開發伺服器預設執行於 <http://localhost:3000>，Fastify API 在 <http://localhost:4000>。
+Astro 開發伺服器預設執行於 <http://localhost:3000>，Fastify API 在 <http://localhost:4001>。
 
 ## 主要腳本
 
@@ -47,11 +46,8 @@ Astro 開發伺服器預設執行於 <http://localhost:3000>，Fastify API 在 <
 
 | 變數 | 說明 | 預設值 |
 | ---- | ---- | ------ |
-| `REMOVE_BG_API_KEY` | remove.bg API 金鑰 | _必填_ |
-| `REMOVE_BG_API_URL` | remove.bg API 端點 | `https://api.remove.bg/v1.0/removebg` |
-| `REMOVE_BG_MAX_FILES` | 單次處理上限 | `50` |
-| `REMOVE_BG_TIMEOUT_MS` | remove.bg 請求逾時（毫秒） | `45000` |
 | `PUBLIC_MAX_FILES` | 前端限制上傳上限（需同步後端設定） | `50` |
+| `API_MAX_FILES` | 後端 ZIP 允許的檔案上限（預設沿用前端） | `50` |
 | `API_PORT` | Fastify 監聽埠號 | `4001` |
 | `API_BODY_LIMIT` | 後端允許的最大 body（bytes） | `41943040` |
 
@@ -63,29 +59,28 @@ Astro 開發伺服器預設執行於 <http://localhost:3000>，Fastify API 在 <
 ├── package.json
 ├── server
 │   ├── index.ts               # Fastify 入口
-│   ├── plugins/config.ts      # 環境設定注入
 │   └── routes
-│       ├── removeBg.ts        # remove.bg 代理 API
 │       └── zip.ts             # ZIP 串流打包
 └── src
-    ├── components/Workspace.tsx  # 主要工作區（React + fabric.js）
+    ├── components/Workspace.tsx  # 主要工作區（React + fabric.js + background-removal）
     ├── layouts/BaseLayout.astro
     ├── pages/index.astro
     ├── styles/tailwind.css
+    ├── utils/backgroundRemoval.ts
     └── utils/fabricLoader.ts
 ```
 
 ## 驗收建議
 
-1. 於 `.env` 設定有效的 `REMOVE_BG_API_KEY`，執行 `npm run dev`。
-2. 上傳 10 張測試圖片後，批量縮放到 80%、背景設定為 `#F5F5F5`，形狀選擇圓形。
+1. 依 `.env.example` 建立 `.env`，可視需求調整上傳張數與後端限制。
+2. 執行 `npm run dev` 後上傳 10 張測試圖片，批量縮放到 80%、背景設定為 `#F5F5F5`，形狀選擇圓形。
 3. 下載 PNG，確認壓縮包內 10 個檔案皆透過 clipPath 真裁切且主體未被裁切。
 4. 切換至單張模式，調整任一照片位置，確認不影響其他圖片結果。
 5. 切換畫布為方形並再次導出，檢查輸出尺寸與透明背景是否正確。
 
 ## 待辦 / 可擴充項目
 
-- 新增後端佇列（防止 remove.bg 429 時過載，或實作等待/重試機制）。
+- 導入 Web Worker 排程 / 併發控制，減少前端去背阻塞主執行緒的時間。
 - 引入登入或 API Key 限制，避免未授權濫用。
 - 加入 E2E / 單元測試（目前僅手動驗證流程）。
 - 國際化與多語系 UI。
