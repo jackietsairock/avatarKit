@@ -1,12 +1,11 @@
 {
-  "extends": "astro/tsconfigs/strict",
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"],
-      "~server/*": ["server/*"]
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.node.json"
     },
-    "types": ["node"]
-  },
-  "include": ["src", "server", "astro.config.mjs"]
+    {
+      "path": "./tsconfig.app.json"
+    }
+  ]
 }

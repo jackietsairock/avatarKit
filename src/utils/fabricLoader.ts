@@ -10,9 +10,16 @@ export async function loadFabric(): Promise<Fabric> {
   }
 
   const module = await import('fabric');
-  const fabric = ('fabric' in module
-    ? (module.fabric as Fabric)
-    : (module.default as Fabric))!;
-  cachedFabric = fabric;
-  return fabric;
+
+  const namespace =
+    (module as { fabric?: Fabric }).fabric ??
+    (module as { default?: Fabric }).default ??
+    (('Canvas' in module ? module : null) as Fabric | null);
+
+  if (!namespace || typeof namespace.Canvas !== 'function') {
+    throw new Error('無法載入 fabric.js');
+  }
+
+  cachedFabric = namespace;
+  return cachedFabric;
 }

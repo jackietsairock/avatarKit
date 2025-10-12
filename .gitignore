@@ -1,9 +1,4 @@
 node_modules
-.astro
-.vercel
 dist
-.idea
 .DS_Store
 *.log
-tmp
-server/.tmp

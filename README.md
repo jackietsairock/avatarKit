@@ -1,86 +1,48 @@
-# AvatarKit
+# Avatar Studio
 
-批量去背與產出頭像的 Astro + Fastify 範例專案。使用者可一次匯入多張照片，前端使用 `@imgly/background-removal` 在瀏覽器直接去背，搭配 fabric.js 提供畫布編輯、批量控制與一鍵壓縮下載。
+全新的頭像批次處理專案，支援拖曳匯入照片、AI 去背、影像增強、個別背景色調整與 PNG 打包下載。最終輸出的每張頭像皆為 **689 × 688 px** 的圓形構圖並維持頭頂到胸口的構圖比例。
 
-## 功能摘要
+## 功能特色
 
-- 上傳或拖曳最多 50 張圖片（JPEG/PNG/WebP，容量 ≤ 15 MB）。
-- 以 `@imgly/background-removal` 在前端即時產生透明背景 PNG，失敗自動重試 2 次並可跳過單張。
-- 畫布尺寸（512/800/1080/2048 px）、圓形/方形（圓角可調）與背景（透明/純色/漸層/圖樣）設定。
-- 批量控制所有素材的縮放、旋轉、X/Y 偏移；單張模式可額外微調，不影響其他圖片。
-- 方向鍵每次微移 1 px，Shift + 方向鍵為 10 px。
-- 匯出 PNG/WebP、設定品質與 1x/2x 倍率；依命名規則輸出並由 `/api/zip` 打包下載。
-- LocalStorage 記住上一次的畫布、批量與匯出設定。
-- iPad 等行動裝置友善操作（Tailwind + 自適應排版）。
-
-## 環境需求
-
-- Node.js 18.17 或更新版本。
+- 🔁 **批次匯入**：拖曳或選擇多張 PNG / JPEG / WebP（最多 50 張）。
+- 🧠 **AI 去背**：採用 `@imgly/background-removal` 在前端處理背景移除。
+- ✨ **影像增強**：若原圖解析度過低，透過 `@upscalerjs/esrgan-medium` 自動放大後再進行去背。
+- 🎨 **個別調色**：素材列表提供色盤控制，每張圖片都能設定專屬背景色。
+- 🧭 **精準微調**：提供縮放、旋轉、X/Y 位移滑桿，可輕鬆將人物構圖調整到頭頂至胸口。
+- 📦 **一鍵打包**：完成編輯後，將所有素材輸出為 PNG 並打包為 ZIP 檔下載。
 
 ## 安裝與啟動
 
+> 專案使用 [Vite](https://vitejs.dev) + React + TypeScript，並整合 Tailwind CSS。
+
 ```bash
 npm install
-cp .env.example .env  # 可視需求調整上傳/後端限制
-
-# 開發模式：同時啟動 Astro + Fastify
 npm run dev
+```
 
-# 建置靜態資源並於本機預覽（需先 build）
+開發伺服器預設執行於 <http://localhost:3000>。
+
+### 建置產出
+
+```bash
 npm run build
-npm run start
+npm run preview
 ```
 
-Astro 開發伺服器預設執行於 <http://localhost:3000>，Fastify API 在 <http://localhost:4001>。
+## 使用流程
 
-## 主要腳本
+1. 開啟網站後，點擊「選擇照片」或將檔案拖曳至左側上傳區。
+2. 系統會自動依序進行「影像增強 → 去背」，處理完成的素材狀態顯示為「就緒」。
+3. 在素材列表中可為每張圖片挑選背景色，點擊即可切換至預覽畫面。
+4. 右側滑桿提供縮放、旋轉、X / Y 位移調整，協助保持頭頂到胸口的構圖。
+5. 點擊「下載全部 PNG (ZIP)」，即可一次取得所有 689 × 688 px 的圓形頭像。
 
-- `npm run dev`: 以 `npm-run-all` 並行啟動 `astro dev` 與 Fastify（`tsx server/index.ts --watch`）。
-- `npm run build`: Astro Build（Node adapter `standalone` 模式）。
-- `npm run start`: 以 `astro preview` + Fastify 啟動預覽模式。
-- `npm run format`: Prettier 自動格式化。
+## 注意事項
 
-## 環境變數
+- 影像增強與去背均在瀏覽器端完成，建議使用支援 WebAssembly 的現代瀏覽器。
+- 如需大量處理，請留意記憶體占用；建議分批處理或在匯出後清空列表。
+- 若外部套件載入失敗（例如跨來源限制），系統會回退至原圖或顯示錯誤訊息，您可重新整理後再試。 
 
-參考 `.env.example`：
+## 授權
 
-| 變數 | 說明 | 預設值 |
-| ---- | ---- | ------ |
-| `PUBLIC_MAX_FILES` | 前端限制上傳上限（需同步後端設定） | `50` |
-| `API_MAX_FILES` | 後端 ZIP 允許的檔案上限（預設沿用前端） | `50` |
-| `API_PORT` | Fastify 監聽埠號 | `4001` |
-| `API_BODY_LIMIT` | 後端允許的最大 body（bytes） | `41943040` |
-
-## 專案結構
-
-```
-.
-├── astro.config.mjs
-├── package.json
-├── server
-│   ├── index.ts               # Fastify 入口
-│   └── routes
-│       └── zip.ts             # ZIP 串流打包
-└── src
-    ├── components/Workspace.tsx  # 主要工作區（React + fabric.js + background-removal）
-    ├── layouts/BaseLayout.astro
-    ├── pages/index.astro
-    ├── styles/tailwind.css
-    ├── utils/backgroundRemoval.ts
-    └── utils/fabricLoader.ts
-```
-
-## 驗收建議
-
-1. 依 `.env.example` 建立 `.env`，可視需求調整上傳張數與後端限制。
-2. 執行 `npm run dev` 後上傳 10 張測試圖片，批量縮放到 80%、背景設定為 `#F5F5F5`，形狀選擇圓形。
-3. 下載 PNG，確認壓縮包內 10 個檔案皆透過 clipPath 真裁切且主體未被裁切。
-4. 切換至單張模式，調整任一照片位置，確認不影響其他圖片結果。
-5. 切換畫布為方形並再次導出，檢查輸出尺寸與透明背景是否正確。
-
-## 待辦 / 可擴充項目
-
-- 導入 Web Worker 排程 / 併發控制，減少前端去背阻塞主執行緒的時間。
-- 引入登入或 API Key 限制，避免未授權濫用。
-- 加入 E2E / 單元測試（目前僅手動驗證流程）。
-- 國際化與多語系 UI。
+此專案以 MIT 授權釋出，可自由複製、修改與商用。詳見 [LICENSE](LICENSE)（若需）。
