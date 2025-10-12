@@ -86,7 +86,7 @@ type ProgressState = {
   total: number;
   processed: number;
   exporting: boolean;
-  stage: 'idle' | 'removal' | 'render' | 'export';
+  stage: 'idle' | 'removal' | 'export';
 };
 
 const MAX_FILES =
@@ -199,8 +199,6 @@ function formatProgressLabel(progress: ProgressState) {
   switch (progress.stage) {
     case 'removal':
       return `去背中 ${progress.processed}/${progress.total}`;
-    case 'render':
-      return '載入畫布';
     case 'export':
       return '導出壓縮中';
     default:
@@ -731,18 +729,6 @@ const Workspace: React.FC = () => {
     if (!selectedItem || selectedItem.status !== 'ready') return;
     void updateFabricImage(selectedItem, true);
   }, [selectedItem?.status, updateFabricImage]);
-
-  useEffect(() => {
-    if (!selectedItem || selectedItem.status !== 'ready') return;
-    setProgress((prev) =>
-      prev.exporting
-        ? prev
-        : {
-            ...prev,
-            stage: 'render'
-          }
-    );
-  }, [selectedItem?.id, selectedItem?.status]);
 
   const handleFiles = useCallback(
     (files: FileList | null) => {
