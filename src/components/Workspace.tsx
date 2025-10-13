@@ -154,6 +154,7 @@ const Workspace: React.FC = () => {
       : activeShapeMetrics.clipPathValue;
   const previewBorderRadius =
     activeShape === 'circle' ? '50%' : '32px';
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
 
   const setupCanvas = useCallback(async () => {
     const fabricInstance = await loadFabric();
@@ -744,8 +745,9 @@ const Workspace: React.FC = () => {
   }, [items]);
 
   return (
-    <div className="flex w-full max-w-6xl flex-1 gap-6">
-      <aside className="flex w-full max-w-xs flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+    <div className="flex w-full max-w-6xl flex-1 flex-col gap-6">
+      <div className="flex flex-1 gap-6">
+        <aside className="flex w-full max-w-xs flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
         <button
           className="w-full rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-3 text-sm font-semibold hover:border-slate-500 hover:bg-slate-700"
           onClick={() => fileInputRef.current?.click()}
@@ -1019,7 +1021,19 @@ const Workspace: React.FC = () => {
             </div>
           </div>
         </div>
-      </section>
+        </section>
+      </div>
+      <footer className="flex items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-3 text-xs text-slate-400">
+        © {currentYear} 
+        <a
+          href="https://jackiedesign.tw"
+          target="_blank"
+          rel="noreferrer"
+          className="ml-1 text-emerald-300 hover:text-emerald-200"
+        >
+          Jackie設計. All rights reserved.
+        </a>
+      </footer>
     </div>
   );
 };
