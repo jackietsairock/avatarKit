@@ -790,329 +790,329 @@ const Workspace: React.FC = () => {
 
   return (
     <div className="flex w-full max-w-6xl flex-1 flex-col gap-6">
-      <div className="flex flex-1 gap-6">
-        <aside className="flex w-full max-w-xs flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-        <button
-          className="w-full rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-3 text-sm font-semibold hover:border-slate-500 hover:bg-slate-700"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          選擇照片
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={FILE_ACCEPT}
-          multiple
-          className="hidden"
-          onChange={(event) => handleFiles(event.target.files)}
-        />
-        <div
-          className="flex min-h-[140px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-4 py-6 text-center text-xs text-slate-400"
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={handleDrop}
-        >
-          <p>拖曳或點擊以上傳至多 {MAX_FILES} 張照片</p>
-          <p className="text-[11px] text-slate-500">支援 PNG / JPEG / WebP</p>
-        </div>
-        <div className="flex items-center justify-between text-xs text-slate-400">
-          <span>素材列表</span>
-          <span>
-            {items.length}/{MAX_FILES}
-          </span>
-        </div>
-        <div className="scrollbar-thin flex-1 space-y-3 overflow-y-auto pr-1">
-          {items.map((item) => {
-            const isProcessing =
-              item.status === 'pending' ||
-              item.status === 'enhancing' ||
-              item.status === 'removing';
-            const removalLabel = renderRemovalLabel(item.status);
+      <div className="flex flex-1 flex-col gap-6 lg:flex-row">
+        <aside className="flex w-full min-w-0 flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:p-5 lg:max-w-xs lg:flex-shrink-0">
+          <button
+            className="w-full rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-3 text-sm font-semibold hover:border-slate-500 hover:bg-slate-700"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            選擇照片
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={FILE_ACCEPT}
+            multiple
+            className="hidden"
+            onChange={(event) => handleFiles(event.target.files)}
+          />
+          <div
+            className="flex min-h-[140px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-4 py-6 text-center text-xs text-slate-400"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={handleDrop}
+          >
+            <p>拖曳或點擊以上傳至多 {MAX_FILES} 張照片</p>
+            <p className="text-[11px] text-slate-500">支援 PNG / JPEG / WebP</p>
+          </div>
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span>素材列表</span>
+            <span>
+              {items.length}/{MAX_FILES}
+            </span>
+          </div>
+          <div className="scrollbar-thin flex-1 space-y-3 overflow-y-auto pr-1">
+            {items.map((item) => {
+              const isProcessing =
+                item.status === 'pending' ||
+                item.status === 'enhancing' ||
+                item.status === 'removing';
+              const removalLabel = renderRemovalLabel(item.status);
 
-            return (
-              <div
-                key={item.id}
-                className={`relative flex flex-col gap-3 rounded-xl border p-3 transition-all ${
-                  selectedItem?.id === item.id
-                    ? 'border-emerald-400/60 bg-emerald-500/10'
-                    : 'border-slate-800 bg-slate-900/40 hover:border-slate-600'
-                }`}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedId(item.id)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    setSelectedId(item.id);
-                  }
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                      isProcessing
-                        ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-100'
-                        : 'border-slate-700 bg-slate-800/60 text-slate-200 hover:border-emerald-400/70 hover:text-emerald-200'
-                    } disabled:cursor-not-allowed disabled:opacity-70`}
-                    disabled={isProcessing}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      startBackgroundRemoval(item.id);
-                    }}
-                  >
-                    {removalLabel}
-                  </button>
-                  <img
-                    src={item.processedUrl ?? item.previewUrl}
-                    alt={item.originalName}
-                    className="h-16 w-16 shrink-0 rounded-lg object-cover"
-                  />
-                  <div className="flex flex-1 flex-col text-xs">
-                    <span className="truncate font-medium text-slate-100">
-                      {item.originalName}
-                    </span>
-                    <span className="text-slate-400">
-                      {renderItemStatus(item.status)}
-                    </span>
-                    {item.errorMessage && (
-                      <span className="text-rose-400">{item.errorMessage}</span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className="rounded-lg border border-rose-500/60 px-3 py-1 text-xs text-rose-300 hover:bg-rose-500/20"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handleRemove(item.id);
-                    }}
-                  >
-                    刪除
-                  </button>
-                </div>
-                <label className="flex items-center justify-between gap-3 text-xs">
-                  <span className="text-slate-300">背景顏色</span>
-                  <input
-                    type="color"
-                    value={item.backgroundColor}
-                    onChange={(event) =>
-                      setItems((prev) =>
-                        prev.map((candidate) =>
-                          candidate.id === item.id
-                            ? { ...candidate, backgroundColor: event.target.value }
-                            : candidate
-                        )
-                      )
+              return (
+                <div
+                  key={item.id}
+                  className={`relative flex flex-col gap-3 rounded-xl border p-3 transition-all ${
+                    selectedItem?.id === item.id
+                      ? 'border-emerald-400/60 bg-emerald-500/10'
+                      : 'border-slate-800 bg-slate-900/40 hover:border-slate-600'
+                  }`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedId(item.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedId(item.id);
                     }
-                    className="h-8 w-16 cursor-pointer rounded border border-slate-700"
-                  />
-                </label>
-                {isProcessing && (
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-slate-900/75">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-emerald-200">
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-300 border-t-transparent" />
-                      <span>處理中...</span>
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                        isProcessing
+                          ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-100'
+                          : 'border-slate-700 bg-slate-800/60 text-slate-200 hover:border-emerald-400/70 hover:text-emerald-200'
+                      } disabled:cursor-not-allowed disabled:opacity-70`}
+                      disabled={isProcessing}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        startBackgroundRemoval(item.id);
+                      }}
+                    >
+                      {removalLabel}
+                    </button>
+                    <img
+                      src={item.processedUrl ?? item.previewUrl}
+                      alt={item.originalName}
+                      className="h-16 w-16 shrink-0 rounded-lg object-cover"
+                    />
+                    <div className="flex flex-1 flex-col text-xs">
+                      <span className="truncate font-medium text-slate-100">
+                        {item.originalName}
+                      </span>
+                      <span className="text-slate-400">
+                        {renderItemStatus(item.status)}
+                      </span>
+                      {item.errorMessage && (
+                        <span className="text-rose-400">{item.errorMessage}</span>
+                      )}
                     </div>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-rose-500/60 px-3 py-1 text-xs text-rose-300 hover:bg-rose-500/20"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleRemove(item.id);
+                      }}
+                    >
+                      刪除
+                    </button>
                   </div>
-                )}
-              </div>
-            );
-          })}
-          {items.length === 0 && (
-            <p className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-center text-xs text-slate-400">
-              尚未選擇圖片，請拖曳或點擊上傳。
-            </p>
-          )}
-        </div>
-        <button
-          className="mt-2 w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-900 enabled:hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700/60"
-          disabled={items.every((item) => item.status !== 'ready') || isBusy}
-          onClick={() => {
-            void downloadAll();
-          }}
-        >
-          {isBusy ? '打包中...' : '下載全部 PNG (ZIP)'}
-        </button>
-      </aside>
-
-      <section className="flex flex-1 flex-col gap-6">
-        <div className="flex flex-1 flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-100">預覽</h2>
-              <p className="text-xs text-slate-400">
-                拖曳滑桿或調整數值來微調每張頭像。
+                  <label className="flex items-center justify-between gap-3 text-xs">
+                    <span className="text-slate-300">背景顏色</span>
+                    <input
+                      type="color"
+                      value={item.backgroundColor}
+                      onChange={(event) =>
+                        setItems((prev) =>
+                          prev.map((candidate) =>
+                            candidate.id === item.id
+                              ? { ...candidate, backgroundColor: event.target.value }
+                              : candidate
+                          )
+                        )
+                      }
+                      className="h-8 w-16 cursor-pointer rounded border border-slate-700"
+                    />
+                  </label>
+                  {isProcessing && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-slate-900/75">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-emerald-200">
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-300 border-t-transparent" />
+                        <span>處理中...</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {items.length === 0 && (
+              <p className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-center text-xs text-slate-400">
+                尚未選擇圖片，請拖曳或點擊上傳。
               </p>
-            </div>
-            {selectedItem && (
-              <span className="text-xs text-slate-400">
-                狀態：{renderItemStatus(selectedItem.status)}
-              </span>
             )}
           </div>
+          <button
+            className="mt-2 w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-900 enabled:hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700/60"
+            disabled={items.every((item) => item.status !== 'ready') || isBusy}
+            onClick={() => {
+              void downloadAll();
+            }}
+          >
+            {isBusy ? '打包中...' : '下載全部 PNG (ZIP)'}
+          </button>
+        </aside>
 
-          <div className="flex flex-1 flex-col gap-6 md:flex-row">
-            <div className="flex flex-1 items-center justify-center">
-              <div className="relative aspect-[689/688] w-full max-w-[420px]">
-                <div
-                  id="avatar-canvas-host"
-                  className="flex h-full w-full items-center justify-center overflow-hidden bg-slate-900"
-                  style={{
-                    WebkitClipPath: previewClipPath,
-                    clipPath: previewClipPath,
-                    borderRadius: previewClipPath ? undefined : previewBorderRadius
-                  }}
-                />
-                {isSelectedProcessing && (
+        <section className="flex w-full flex-1 min-w-0 flex-col gap-6">
+          <div className="flex flex-1 flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-5 sm:p-6">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-100">預覽</h2>
+                <p className="text-xs text-slate-400">
+                  拖曳滑桿或調整數值來微調每張頭像。
+                </p>
+              </div>
+              {selectedItem && (
+                <span className="text-xs text-slate-400">
+                  狀態：{renderItemStatus(selectedItem.status)}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-1 flex-col gap-6 lg:flex-row">
+              <div className="flex min-h-[260px] flex-1 items-center justify-center sm:min-h-[320px]">
+                <div className="relative aspect-[689/688] w-full max-w-[420px]">
                   <div
-                    className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-900/80"
+                    id="avatar-canvas-host"
+                    className="flex h-full w-full items-center justify-center overflow-hidden bg-slate-900"
                     style={{
                       WebkitClipPath: previewClipPath,
                       clipPath: previewClipPath,
                       borderRadius: previewClipPath ? undefined : previewBorderRadius
                     }}
-                  >
-                    <div className="flex items-center gap-3 text-sm font-semibold text-emerald-200">
-                      <span className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-300 border-t-transparent" />
-                      <span>去背處理中...</span>
+                  />
+                  {isSelectedProcessing && (
+                    <div
+                      className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-900/80"
+                      style={{
+                        WebkitClipPath: previewClipPath,
+                        clipPath: previewClipPath,
+                        borderRadius: previewClipPath ? undefined : previewBorderRadius
+                      }}
+                    >
+                      <div className="flex items-center gap-3 text-sm font-semibold text-emerald-200">
+                        <span className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-300 border-t-transparent" />
+                        <span>去背處理中...</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
+                  <div
+                    className="pointer-events-none absolute inset-0 border border-slate-800"
+                    style={{
+                      WebkitClipPath: previewClipPath,
+                      clipPath: previewClipPath,
+                      borderRadius: previewClipPath ? '50%' : previewBorderRadius
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex w-full min-w-0 flex-col gap-5 rounded-2xl border border-slate-800 bg-slate-900/40 p-5 sm:p-6 md:max-w-md lg:max-w-sm">
+                <h3 className="text-sm font-semibold text-slate-200">圖像調整</h3>
+
+                {selectedItem ? (
+                  <>
+                    <div className="flex flex-col gap-2 text-xs">
+                      <span className="text-slate-300">輸出形狀</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          className={`rounded-lg border px-3 py-2 font-medium ${
+                            selectedItem.shape === 'circle'
+                              ? 'border-emerald-400/70 bg-emerald-500/20 text-emerald-200'
+                              : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-500'
+                          }`}
+                          onClick={() => updateShape(selectedItem.id, 'circle')}
+                        >
+                          圓形
+                        </button>
+                        <button
+                          type="button"
+                          className={`rounded-lg border px-3 py-2 font-medium ${
+                            selectedItem.shape === 'square'
+                              ? 'border-emerald-400/70 bg-emerald-500/20 text-emerald-200'
+                              : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-500'
+                          }`}
+                          onClick={() => updateShape(selectedItem.id, 'square')}
+                        >
+                          方形
+                        </button>
+                      </div>
+                    </div>
+
+                    <label className="flex flex-col gap-2 text-xs">
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>縮放</span>
+                        <span>{Math.round(selectedItem.overrides.scale * 100)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={SCALE_RANGE.min}
+                        max={SCALE_RANGE.max}
+                        step={0.01}
+                        value={selectedItem.overrides.scale}
+                        onChange={(event) =>
+                          updateOverrides(
+                            selectedItem.id,
+                            'scale',
+                            Number(event.target.value)
+                          )
+                        }
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-2 text-xs">
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>旋轉</span>
+                        <span>{selectedItem.overrides.rotation}°</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={ROTATE_RANGE.min}
+                        max={ROTATE_RANGE.max}
+                        step={1}
+                        value={selectedItem.overrides.rotation}
+                        onChange={(event) =>
+                          updateOverrides(
+                            selectedItem.id,
+                            'rotation',
+                            Number(event.target.value)
+                          )
+                        }
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-2 text-xs">
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>X 偏移</span>
+                        <span>{selectedItem.overrides.offsetX}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={OFFSET_RANGE.min}
+                        max={OFFSET_RANGE.max}
+                        step={1}
+                        value={selectedItem.overrides.offsetX}
+                        onChange={(event) =>
+                          updateOverrides(
+                            selectedItem.id,
+                            'offsetX',
+                            Number(event.target.value)
+                          )
+                        }
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-2 text-xs">
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>Y 偏移</span>
+                        <span>{selectedItem.overrides.offsetY}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={OFFSET_RANGE.min}
+                        max={OFFSET_RANGE.max}
+                        step={1}
+                        value={selectedItem.overrides.offsetY}
+                        onChange={(event) =>
+                          updateOverrides(
+                            selectedItem.id,
+                            'offsetY',
+                            Number(event.target.value)
+                          )
+                        }
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-400">
+                    尚未選取素材，請從左側列表中選擇一張照片開始編輯。
+                  </p>
                 )}
-                <div
-                  className="pointer-events-none absolute inset-0 border border-slate-800"
-                  style={{
-                    WebkitClipPath: previewClipPath,
-                    clipPath: previewClipPath,
-                    borderRadius: previewClipPath ? '50%' : previewBorderRadius
-                  }}
-                />
               </div>
             </div>
-
-            <div className="flex w-full max-w-sm flex-col gap-5 rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
-              <h3 className="text-sm font-semibold text-slate-200">圖像調整</h3>
-
-              {selectedItem ? (
-                <>
-                  <div className="flex flex-col gap-2 text-xs">
-                    <span className="text-slate-300">輸出形狀</span>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        className={`rounded-lg border px-3 py-2 font-medium ${
-                          selectedItem.shape === 'circle'
-                            ? 'border-emerald-400/70 bg-emerald-500/20 text-emerald-200'
-                            : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-500'
-                        }`}
-                        onClick={() => updateShape(selectedItem.id, 'circle')}
-                      >
-                        圓形
-                      </button>
-                      <button
-                        type="button"
-                        className={`rounded-lg border px-3 py-2 font-medium ${
-                          selectedItem.shape === 'square'
-                            ? 'border-emerald-400/70 bg-emerald-500/20 text-emerald-200'
-                            : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-500'
-                        }`}
-                        onClick={() => updateShape(selectedItem.id, 'square')}
-                      >
-                        方形
-                      </button>
-                    </div>
-                  </div>
-
-                  <label className="flex flex-col gap-2 text-xs">
-                    <div className="flex items-center justify-between text-slate-300">
-                      <span>縮放</span>
-                      <span>{Math.round(selectedItem.overrides.scale * 100)}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={SCALE_RANGE.min}
-                      max={SCALE_RANGE.max}
-                      step={0.01}
-                      value={selectedItem.overrides.scale}
-                      onChange={(event) =>
-                        updateOverrides(
-                          selectedItem.id,
-                          'scale',
-                          Number(event.target.value)
-                        )
-                      }
-                    />
-                  </label>
-
-                  <label className="flex flex-col gap-2 text-xs">
-                    <div className="flex items-center justify-between text-slate-300">
-                      <span>旋轉</span>
-                      <span>{selectedItem.overrides.rotation}°</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={ROTATE_RANGE.min}
-                      max={ROTATE_RANGE.max}
-                      step={1}
-                      value={selectedItem.overrides.rotation}
-                      onChange={(event) =>
-                        updateOverrides(
-                          selectedItem.id,
-                          'rotation',
-                          Number(event.target.value)
-                        )
-                      }
-                    />
-                  </label>
-
-                  <label className="flex flex-col gap-2 text-xs">
-                    <div className="flex items-center justify-between text-slate-300">
-                      <span>X 偏移</span>
-                      <span>{selectedItem.overrides.offsetX}px</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={OFFSET_RANGE.min}
-                      max={OFFSET_RANGE.max}
-                      step={1}
-                      value={selectedItem.overrides.offsetX}
-                      onChange={(event) =>
-                        updateOverrides(
-                          selectedItem.id,
-                          'offsetX',
-                          Number(event.target.value)
-                        )
-                      }
-                    />
-                  </label>
-
-                  <label className="flex flex-col gap-2 text-xs">
-                    <div className="flex items-center justify-between text-slate-300">
-                      <span>Y 偏移</span>
-                      <span>{selectedItem.overrides.offsetY}px</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={OFFSET_RANGE.min}
-                      max={OFFSET_RANGE.max}
-                      step={1}
-                      value={selectedItem.overrides.offsetY}
-                      onChange={(event) =>
-                        updateOverrides(
-                          selectedItem.id,
-                          'offsetY',
-                          Number(event.target.value)
-                        )
-                      }
-                    />
-                  </label>
-                </>
-              ) : (
-                <p className="text-xs text-slate-400">
-                  尚未選取素材，請從左側列表中選擇一張照片開始編輯。
-                </p>
-              )}
-            </div>
           </div>
-        </div>
         </section>
       </div>
       <footer className="flex items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-3 text-xs text-slate-400">
