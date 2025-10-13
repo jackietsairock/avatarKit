@@ -18,9 +18,13 @@ import { saveAs } from 'file-saver';
 import { v4 as uuid } from 'uuid';
 import tinycolor from 'tinycolor2';
 
-const OUTPUT_WIDTH = 689;
-const OUTPUT_HEIGHT = 688;
+const OUTPUT_WIDTH = 420;
+const OUTPUT_HEIGHT = 420;
 const FILE_ACCEPT = '.jpg,.jpeg,.png,.webp';
+const CLIP_RATIO = 0.9;
+const CLIP_PATH_VALUE = `circle(${(CLIP_RATIO * 50).toFixed(4)}% at 50% 50%)`;
+const INNER_DIAMETER = Math.min(OUTPUT_WIDTH, OUTPUT_HEIGHT) * CLIP_RATIO;
+const CLIP_RADIUS = INNER_DIAMETER / 2;
 
 const DEFAULT_OVERRIDES = {
   scale: 1,
@@ -97,6 +101,10 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function resolveBackgroundColor(color?: string) {
+  return tinycolor(color ?? DEFAULT_BACKGROUND).toHexString().toLowerCase();
+}
+
 const Workspace: React.FC = () => {
   const [items, setItems] = useState<AvatarItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -144,7 +152,7 @@ const Workspace: React.FC = () => {
     canvas.setHeight(OUTPUT_HEIGHT);
 
     canvas.clipPath = new fabricInstance.Circle({
-      radius: Math.min(OUTPUT_WIDTH, OUTPUT_HEIGHT) / 2,
+      radius: CLIP_RADIUS,
       left: OUTPUT_WIDTH / 2,
       top: OUTPUT_HEIGHT / 2,
       originX: 'center',
@@ -168,9 +176,7 @@ const Workspace: React.FC = () => {
   const applyBackground = useCallback((item: AvatarItem | null) => {
     if (!refs.current.canvas) return;
     const canvas = refs.current.canvas;
-    const color = tinycolor(item?.backgroundColor ?? DEFAULT_BACKGROUND)
-      .toHexString()
-      .toLowerCase();
+    const color = resolveBackgroundColor(item?.backgroundColor);
 
     (canvas as fabric.Canvas & {
       backgroundColor?: string;
@@ -226,7 +232,7 @@ const Workspace: React.FC = () => {
         width: number,
         height: number
       ) => {
-        const baseScale = Math.min(OUTPUT_WIDTH / width, OUTPUT_HEIGHT / height);
+        const baseScale = Math.min(INNER_DIAMETER / width, INNER_DIAMETER / height);
         const overrideScale = clamp(
           item.overrides.scale,
           SCALE_RANGE.min,
@@ -540,54 +546,100 @@ const Workspace: React.FC = () => {
   };
 
   const renderCanvasToBlob = async (item: AvatarItem): Promise<Blob> => {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const element = new Image();
-      element.crossOrigin = 'anonymous';
-      element.onload = () => resolve(element);
-      element.onerror = () => reject(new Error('載入圖片失敗'));
-      element.src = item.processedUrl ?? item.previewUrl;
+    const fabricInstance = await loadFabric();
+    const exportCanvasElement = document.createElement('canvas');
+    exportCanvasElement.width = OUTPUT_WIDTH;
+    exportCanvasElement.height = OUTPUT_HEIGHT;
+
+    const exportCanvas = new fabricInstance.Canvas(exportCanvasElement, {
+      selection: false,
+      backgroundColor: resolveBackgroundColor(item.backgroundColor),
+      fireRightClick: false,
+      controlsAboveOverlay: true
     });
 
-    const canvas = document.createElement('canvas');
-    canvas.width = OUTPUT_WIDTH;
-    canvas.height = OUTPUT_HEIGHT;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('無法建立畫布上下文');
+    exportCanvas.setWidth(OUTPUT_WIDTH);
+    exportCanvas.setHeight(OUTPUT_HEIGHT);
+    exportCanvas.clipPath = new fabricInstance.Circle({
+      radius: CLIP_RADIUS,
+      left: OUTPUT_WIDTH / 2,
+      top: OUTPUT_HEIGHT / 2,
+      originX: 'center',
+      originY: 'center',
+      absolutePositioned: true
+    });
 
-    ctx.fillStyle = item.backgroundColor ?? DEFAULT_BACKGROUND;
-    ctx.fillRect(0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
+    const fromURL = fabricInstance.Image.fromURL.bind(fabricInstance.Image);
+    const source = item.processedUrl ?? item.previewUrl;
+    const image = await (async () => {
+      if (fromURL.length <= 2) {
+        return fromURL(source, {
+          crossOrigin: 'anonymous'
+        });
+      }
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(OUTPUT_WIDTH / 2, OUTPUT_HEIGHT / 2, OUTPUT_HEIGHT / 2, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
+      return new Promise<fabric.Image | null>((resolve) => {
+        fromURL(
+          source,
+          (img: fabric.Image | null) => resolve(img),
+          {
+            crossOrigin: 'anonymous'
+          }
+        );
+      });
+    })();
 
+    if (!image) {
+      exportCanvas.dispose();
+      throw new Error('載入圖片失敗');
+    }
+
+    const originalWidth =
+      item.width ?? image.width ?? image.getScaledWidth() ?? OUTPUT_WIDTH;
+    const originalHeight =
+      item.height ?? image.height ?? image.getScaledHeight() ?? OUTPUT_HEIGHT;
     const baseScale = Math.min(
-      OUTPUT_WIDTH / img.naturalWidth,
-      OUTPUT_HEIGHT / img.naturalHeight
+      INNER_DIAMETER / originalWidth,
+      INNER_DIAMETER / originalHeight
     );
-    const scale = baseScale * item.overrides.scale;
-    const rotation = (item.overrides.rotation * Math.PI) / 180;
-
-    ctx.translate(
-      OUTPUT_WIDTH / 2 + item.overrides.offsetX,
-      OUTPUT_HEIGHT / 2 + item.overrides.offsetY
+    const overrideScale = clamp(
+      item.overrides.scale,
+      SCALE_RANGE.min,
+      SCALE_RANGE.max
     );
-    ctx.rotate(rotation);
-    ctx.scale(scale, scale);
-    ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-    ctx.restore();
+    const scale = baseScale * overrideScale;
 
-    return new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (blob) {
-          resolve(blob);
-        } else {
-          reject(new Error('輸出圖片失敗'));
-        }
-      }, 'image/png');
+    image.set({
+      originX: 'center',
+      originY: 'center',
+      left: OUTPUT_WIDTH / 2 + item.overrides.offsetX,
+      top: OUTPUT_HEIGHT / 2 + item.overrides.offsetY,
+      angle: item.overrides.rotation,
+      selectable: false,
+      evented: false,
+      scaleX: scale,
+      scaleY: scale
     });
+
+    image.setCoords();
+    exportCanvas.add(image);
+    exportCanvas.renderAll();
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      exportCanvasElement.toBlob(
+        (canvasBlob) => {
+          if (canvasBlob) {
+            resolve(canvasBlob);
+          } else {
+            reject(new Error('輸出圖片失敗'));
+          }
+        },
+        'image/png'
+      );
+    });
+
+    exportCanvas.dispose();
+    return blob;
   };
 
   const downloadAll = useCallback(async () => {
@@ -747,10 +799,24 @@ const Workspace: React.FC = () => {
 
           <div className="flex flex-1 flex-col gap-6 md:flex-row">
             <div className="flex flex-1 items-center justify-center">
-              <div
-                id="avatar-canvas-host"
-                className="flex aspect-[689/688] w-full max-w-[420px] items-center justify-center overflow-hidden rounded-[48px] border border-slate-800 bg-slate-900"
-              />
+              <div className="relative aspect-[689/688] w-full max-w-[420px]">
+                <div
+                  id="avatar-canvas-host"
+                  className="flex h-full w-full items-center justify-center overflow-hidden bg-slate-900"
+                  style={{
+                    WebkitClipPath: CLIP_PATH_VALUE,
+                    clipPath: CLIP_PATH_VALUE
+                  }}
+                />
+                <div
+                  className="pointer-events-none absolute inset-0 border border-slate-800"
+                  style={{
+                    WebkitClipPath: CLIP_PATH_VALUE,
+                    clipPath: CLIP_PATH_VALUE,
+                    borderRadius: '50%'
+                  }}
+                />
+              </div>
             </div>
 
             <div className="flex w-full max-w-sm flex-col gap-5 rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
