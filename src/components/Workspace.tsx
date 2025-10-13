@@ -69,6 +69,7 @@ interface ItemOverrides {
 }
 
 type AvatarStatus =
+  | 'idle'
   | 'pending'
   | 'enhancing'
   | 'removing'
@@ -155,6 +156,11 @@ const Workspace: React.FC = () => {
   const previewBorderRadius =
     activeShape === 'circle' ? '50%' : '32px';
   const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const isSelectedProcessing =
+    selectedItem != null &&
+    (selectedItem.status === 'pending' ||
+      selectedItem.status === 'enhancing' ||
+      selectedItem.status === 'removing');
 
   const setupCanvas = useCallback(async () => {
     const fabricInstance = await loadFabric();
@@ -506,7 +512,7 @@ const Workspace: React.FC = () => {
         previewUrl: URL.createObjectURL(file),
         backgroundColor: DEFAULT_BACKGROUND,
         overrides: { ...DEFAULT_OVERRIDES },
-        status: 'pending',
+        status: 'idle',
         shape: 'circle'
       }));
 
@@ -591,12 +597,35 @@ const Workspace: React.FC = () => {
     );
   }, []);
 
+  const startBackgroundRemoval = useCallback((id: string) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        if (
+          item.status === 'pending' ||
+          item.status === 'enhancing' ||
+          item.status === 'removing'
+        ) {
+          return item;
+        }
+
+        return {
+          ...item,
+          status: 'pending',
+          errorMessage: undefined
+        };
+      })
+    );
+  }, []);
+
   useEffect(() => {
     void updateCanvasImage(selectedItem ?? null);
   }, [items, selectedItem, updateCanvasImage]);
 
   const renderItemStatus = (status: AvatarStatus) => {
     switch (status) {
+      case 'idle':
+        return '尚未處理';
       case 'pending':
         return '排隊';
       case 'enhancing':
@@ -609,6 +638,21 @@ const Workspace: React.FC = () => {
         return '錯誤';
       default:
         return '狀態未知';
+    }
+  };
+
+  const renderRemovalLabel = (status: AvatarStatus) => {
+    switch (status) {
+      case 'ready':
+        return '重新去背';
+      case 'error':
+        return '重試去背';
+      case 'pending':
+      case 'enhancing':
+      case 'removing':
+        return '處理中...';
+      default:
+        return '去背';
     }
   };
 
@@ -777,69 +821,102 @@ const Workspace: React.FC = () => {
           </span>
         </div>
         <div className="scrollbar-thin flex-1 space-y-3 overflow-y-auto pr-1">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className={`flex flex-col gap-3 rounded-xl border p-3 transition-all ${
-                selectedItem?.id === item.id
-                  ? 'border-emerald-400/60 bg-emerald-500/10'
-                  : 'border-slate-800 bg-slate-900/40 hover:border-slate-600'
-              }`}
-              role="button"
-              tabIndex={0}
-              onClick={() => setSelectedId(item.id)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  setSelectedId(item.id);
-                }
-              }}
-            >
-              <div className="flex items-center gap-3">
-                <img
-                  src={item.processedUrl ?? item.previewUrl}
-                  alt={item.originalName}
-                  className="h-16 w-16 shrink-0 rounded-lg object-cover"
-                />
-                <div className="flex flex-1 flex-col text-xs">
-                  <span className="truncate font-medium text-slate-100">
-                    {item.originalName}
-                  </span>
-                  <span className="text-slate-400">{renderItemStatus(item.status)}</span>
-                  {item.errorMessage && (
-                    <span className="text-rose-400">{item.errorMessage}</span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className="rounded-lg border border-rose-500/60 px-3 py-1 text-xs text-rose-300 hover:bg-rose-500/20"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleRemove(item.id);
-                  }}
-                >
-                  刪除
-                </button>
-              </div>
-              <label className="flex items-center justify-between gap-3 text-xs">
-                <span className="text-slate-300">背景顏色</span>
-                <input
-                  type="color"
-                  value={item.backgroundColor}
-                  onChange={(event) =>
-                    setItems((prev) =>
-                      prev.map((candidate) =>
-                        candidate.id === item.id
-                          ? { ...candidate, backgroundColor: event.target.value }
-                          : candidate
-                      )
-                    )
+          {items.map((item) => {
+            const isProcessing =
+              item.status === 'pending' ||
+              item.status === 'enhancing' ||
+              item.status === 'removing';
+            const removalLabel = renderRemovalLabel(item.status);
+
+            return (
+              <div
+                key={item.id}
+                className={`relative flex flex-col gap-3 rounded-xl border p-3 transition-all ${
+                  selectedItem?.id === item.id
+                    ? 'border-emerald-400/60 bg-emerald-500/10'
+                    : 'border-slate-800 bg-slate-900/40 hover:border-slate-600'
+                }`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedId(item.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setSelectedId(item.id);
                   }
-                  className="h-8 w-16 cursor-pointer rounded border border-slate-700"
-                />
-              </label>
-            </div>
-          ))}
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                      isProcessing
+                        ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-100'
+                        : 'border-slate-700 bg-slate-800/60 text-slate-200 hover:border-emerald-400/70 hover:text-emerald-200'
+                    } disabled:cursor-not-allowed disabled:opacity-70`}
+                    disabled={isProcessing}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      startBackgroundRemoval(item.id);
+                    }}
+                  >
+                    {removalLabel}
+                  </button>
+                  <img
+                    src={item.processedUrl ?? item.previewUrl}
+                    alt={item.originalName}
+                    className="h-16 w-16 shrink-0 rounded-lg object-cover"
+                  />
+                  <div className="flex flex-1 flex-col text-xs">
+                    <span className="truncate font-medium text-slate-100">
+                      {item.originalName}
+                    </span>
+                    <span className="text-slate-400">
+                      {renderItemStatus(item.status)}
+                    </span>
+                    {item.errorMessage && (
+                      <span className="text-rose-400">{item.errorMessage}</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-lg border border-rose-500/60 px-3 py-1 text-xs text-rose-300 hover:bg-rose-500/20"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleRemove(item.id);
+                    }}
+                  >
+                    刪除
+                  </button>
+                </div>
+                <label className="flex items-center justify-between gap-3 text-xs">
+                  <span className="text-slate-300">背景顏色</span>
+                  <input
+                    type="color"
+                    value={item.backgroundColor}
+                    onChange={(event) =>
+                      setItems((prev) =>
+                        prev.map((candidate) =>
+                          candidate.id === item.id
+                            ? { ...candidate, backgroundColor: event.target.value }
+                            : candidate
+                        )
+                      )
+                    }
+                    className="h-8 w-16 cursor-pointer rounded border border-slate-700"
+                  />
+                </label>
+                {isProcessing && (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-slate-900/75">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-emerald-200">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-300 border-t-transparent" />
+                      <span>處理中...</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
           {items.length === 0 && (
             <p className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-center text-xs text-slate-400">
               尚未選擇圖片，請拖曳或點擊上傳。
@@ -885,6 +962,21 @@ const Workspace: React.FC = () => {
                     borderRadius: previewClipPath ? undefined : previewBorderRadius
                   }}
                 />
+                {isSelectedProcessing && (
+                  <div
+                    className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-900/80"
+                    style={{
+                      WebkitClipPath: previewClipPath,
+                      clipPath: previewClipPath,
+                      borderRadius: previewClipPath ? undefined : previewBorderRadius
+                    }}
+                  >
+                    <div className="flex items-center gap-3 text-sm font-semibold text-emerald-200">
+                      <span className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-300 border-t-transparent" />
+                      <span>去背處理中...</span>
+                    </div>
+                  </div>
+                )}
                 <div
                   className="pointer-events-none absolute inset-0 border border-slate-800"
                   style={{
