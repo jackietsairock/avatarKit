@@ -1118,7 +1118,7 @@ const Workspace: React.FC = () => {
       <footer className="flex items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-3 text-xs text-slate-400">
         © {currentYear} 
         <a
-          href="https://jackiedesign.tw"
+          href="https://www.jackiedesign.tw"
           target="_blank"
           rel="noreferrer"
           className="ml-1 text-emerald-300 hover:text-emerald-200"
