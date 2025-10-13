@@ -35,8 +35,8 @@ const DEFAULT_OVERRIDES = {
 
 const DEFAULT_BACKGROUND = '#1e293b';
 
-const SCALE_RANGE = { min: 0.6, max: 1.6 };
-const OFFSET_RANGE = { min: -220, max: 220 };
+const SCALE_RANGE = { min: 0.6, max: 3.0 };
+const OFFSET_RANGE = { min: -420, max: 420 };
 const ROTATE_RANGE = { min: -30, max: 30 };
 
 const MAX_FILES = 50;
