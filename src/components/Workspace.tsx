@@ -333,7 +333,6 @@ const Workspace: React.FC = () => {
         );
       } finally {
         processingRef.current = false;
-        setTimeout(queueNextItem, 0);
       }
     };
 
