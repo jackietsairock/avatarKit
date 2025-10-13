@@ -21,10 +21,30 @@ import tinycolor from 'tinycolor2';
 const OUTPUT_WIDTH = 420;
 const OUTPUT_HEIGHT = 420;
 const FILE_ACCEPT = '.jpg,.jpeg,.png,.webp';
-const CLIP_RATIO = 0.9;
-const CLIP_PATH_VALUE = `circle(${(CLIP_RATIO * 50).toFixed(4)}% at 50% 50%)`;
-const INNER_DIAMETER = Math.min(OUTPUT_WIDTH, OUTPUT_HEIGHT) * CLIP_RATIO;
-const CLIP_RADIUS = INNER_DIAMETER / 2;
+
+type AvatarShape = 'circle' | 'square';
+
+const SHAPE_CLIP_RATIO: Record<AvatarShape, number> = {
+  circle: 0.9,
+  square: 1
+};
+
+function getShapeMetrics(shape: AvatarShape) {
+  const ratio = SHAPE_CLIP_RATIO[shape];
+  const diameter = Math.min(OUTPUT_WIDTH, OUTPUT_HEIGHT) * ratio;
+  const radius = diameter / 2;
+  const clipPathValue =
+    shape === 'circle'
+      ? `circle(${(ratio * 50).toFixed(4)}% at 50% 50%)`
+      : 'none';
+
+  return {
+    ratio,
+    diameter,
+    radius,
+    clipPathValue
+  };
+}
 
 const DEFAULT_OVERRIDES = {
   scale: 1,
@@ -64,6 +84,7 @@ interface AvatarItem {
   backgroundColor: string;
   overrides: ItemOverrides;
   status: AvatarStatus;
+  shape: AvatarShape;
   errorMessage?: string;
   width?: number;
   height?: number;
@@ -122,6 +143,17 @@ const Workspace: React.FC = () => {
     () => items.find((item) => item.id === selectedId) ?? items[0] ?? null,
     [items, selectedId]
   );
+  const activeShape: AvatarShape = selectedItem?.shape ?? 'circle';
+  const activeShapeMetrics = useMemo(
+    () => getShapeMetrics(activeShape),
+    [activeShape]
+  );
+  const previewClipPath =
+    activeShapeMetrics.clipPathValue === 'none'
+      ? undefined
+      : activeShapeMetrics.clipPathValue;
+  const previewBorderRadius =
+    activeShape === 'circle' ? '50%' : '32px';
 
   const setupCanvas = useCallback(async () => {
     const fabricInstance = await loadFabric();
@@ -151,8 +183,9 @@ const Workspace: React.FC = () => {
     canvas.setWidth(OUTPUT_WIDTH);
     canvas.setHeight(OUTPUT_HEIGHT);
 
+    const { radius } = getShapeMetrics('circle');
     canvas.clipPath = new fabricInstance.Circle({
-      radius: CLIP_RADIUS,
+      radius,
       left: OUTPUT_WIDTH / 2,
       top: OUTPUT_HEIGHT / 2,
       originX: 'center',
@@ -223,6 +256,23 @@ const Workspace: React.FC = () => {
 
       applyBackground(item);
 
+      const fabricInstance = await loadFabric();
+      const shape: AvatarShape = item.shape ?? 'circle';
+      const metrics = getShapeMetrics(shape);
+
+      if (shape === 'circle') {
+        canvas.clipPath = new fabricInstance.Circle({
+          radius: metrics.radius,
+          left: OUTPUT_WIDTH / 2,
+          top: OUTPUT_HEIGHT / 2,
+          originX: 'center',
+          originY: 'center',
+          absolutePositioned: true
+        });
+      } else {
+        canvas.clipPath = undefined;
+      }
+
       const existing = refs.current.image;
       const isSameSource =
         !!existing && currentSourceRef.current === source;
@@ -232,7 +282,10 @@ const Workspace: React.FC = () => {
         width: number,
         height: number
       ) => {
-        const baseScale = Math.min(INNER_DIAMETER / width, INNER_DIAMETER / height);
+        const baseScale = Math.min(
+          metrics.diameter / width,
+          metrics.diameter / height
+        );
         const overrideScale = clamp(
           item.overrides.scale,
           SCALE_RANGE.min,
@@ -283,7 +336,6 @@ const Workspace: React.FC = () => {
       const loadToken = imageLoadTokenRef.current + 1;
       imageLoadTokenRef.current = loadToken;
 
-      const fabricInstance = await loadFabric();
       const fromURL = fabricInstance.Image.fromURL.bind(
         fabricInstance.Image
       );
@@ -453,7 +505,8 @@ const Workspace: React.FC = () => {
         previewUrl: URL.createObjectURL(file),
         backgroundColor: DEFAULT_BACKGROUND,
         overrides: { ...DEFAULT_OVERRIDES },
-        status: 'pending'
+        status: 'pending',
+        shape: 'circle'
       }));
 
       const merged = [...prev, ...newItems];
@@ -524,6 +577,19 @@ const Workspace: React.FC = () => {
     []
   );
 
+  const updateShape = useCallback((id: string, shape: AvatarShape) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              shape
+            }
+          : item
+      )
+    );
+  }, []);
+
   useEffect(() => {
     void updateCanvasImage(selectedItem ?? null);
   }, [items, selectedItem, updateCanvasImage]);
@@ -551,6 +617,9 @@ const Workspace: React.FC = () => {
     exportCanvasElement.width = OUTPUT_WIDTH;
     exportCanvasElement.height = OUTPUT_HEIGHT;
 
+    const shape: AvatarShape = item.shape ?? 'circle';
+    const metrics = getShapeMetrics(shape);
+
     const exportCanvas = new fabricInstance.Canvas(exportCanvasElement, {
       selection: false,
       backgroundColor: resolveBackgroundColor(item.backgroundColor),
@@ -560,14 +629,19 @@ const Workspace: React.FC = () => {
 
     exportCanvas.setWidth(OUTPUT_WIDTH);
     exportCanvas.setHeight(OUTPUT_HEIGHT);
-    exportCanvas.clipPath = new fabricInstance.Circle({
-      radius: CLIP_RADIUS,
-      left: OUTPUT_WIDTH / 2,
-      top: OUTPUT_HEIGHT / 2,
-      originX: 'center',
-      originY: 'center',
-      absolutePositioned: true
-    });
+
+    if (shape === 'circle') {
+      exportCanvas.clipPath = new fabricInstance.Circle({
+        radius: metrics.radius,
+        left: OUTPUT_WIDTH / 2,
+        top: OUTPUT_HEIGHT / 2,
+        originX: 'center',
+        originY: 'center',
+        absolutePositioned: true
+      });
+    } else {
+      exportCanvas.clipPath = undefined;
+    }
 
     const fromURL = fabricInstance.Image.fromURL.bind(fabricInstance.Image);
     const source = item.processedUrl ?? item.previewUrl;
@@ -599,8 +673,8 @@ const Workspace: React.FC = () => {
     const originalHeight =
       item.height ?? image.height ?? image.getScaledHeight() ?? OUTPUT_HEIGHT;
     const baseScale = Math.min(
-      INNER_DIAMETER / originalWidth,
-      INNER_DIAMETER / originalHeight
+      metrics.diameter / originalWidth,
+      metrics.diameter / originalHeight
     );
     const overrideScale = clamp(
       item.overrides.scale,
@@ -804,16 +878,17 @@ const Workspace: React.FC = () => {
                   id="avatar-canvas-host"
                   className="flex h-full w-full items-center justify-center overflow-hidden bg-slate-900"
                   style={{
-                    WebkitClipPath: CLIP_PATH_VALUE,
-                    clipPath: CLIP_PATH_VALUE
+                    WebkitClipPath: previewClipPath,
+                    clipPath: previewClipPath,
+                    borderRadius: previewClipPath ? undefined : previewBorderRadius
                   }}
                 />
                 <div
                   className="pointer-events-none absolute inset-0 border border-slate-800"
                   style={{
-                    WebkitClipPath: CLIP_PATH_VALUE,
-                    clipPath: CLIP_PATH_VALUE,
-                    borderRadius: '50%'
+                    WebkitClipPath: previewClipPath,
+                    clipPath: previewClipPath,
+                    borderRadius: previewClipPath ? '50%' : previewBorderRadius
                   }}
                 />
               </div>
@@ -824,6 +899,34 @@ const Workspace: React.FC = () => {
 
               {selectedItem ? (
                 <>
+                  <div className="flex flex-col gap-2 text-xs">
+                    <span className="text-slate-300">輸出形狀</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        className={`rounded-lg border px-3 py-2 font-medium ${
+                          selectedItem.shape === 'circle'
+                            ? 'border-emerald-400/70 bg-emerald-500/20 text-emerald-200'
+                            : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-500'
+                        }`}
+                        onClick={() => updateShape(selectedItem.id, 'circle')}
+                      >
+                        圓形
+                      </button>
+                      <button
+                        type="button"
+                        className={`rounded-lg border px-3 py-2 font-medium ${
+                          selectedItem.shape === 'square'
+                            ? 'border-emerald-400/70 bg-emerald-500/20 text-emerald-200'
+                            : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-500'
+                        }`}
+                        onClick={() => updateShape(selectedItem.id, 'square')}
+                      >
+                        方形
+                      </button>
+                    </div>
+                  </div>
+
                   <label className="flex flex-col gap-2 text-xs">
                     <div className="flex items-center justify-between text-slate-300">
                       <span>縮放</span>
