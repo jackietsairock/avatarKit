@@ -103,6 +103,11 @@ const Workspace: React.FC = () => {
   const [isBusy, setIsBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const refs = useRef<FabricRefs>({ canvas: null, image: null });
+  const currentSourceRef = useRef<string | null>(null);
+  const currentDimensionsRef = useRef<{ width: number; height: number } | null>(
+    null
+  );
+  const imageLoadTokenRef = useRef(0);
   const processingRef = useRef(false);
 
   const selectedItem = useMemo(
@@ -160,32 +165,39 @@ const Workspace: React.FC = () => {
     };
   }, [setupCanvas]);
 
-  const applyBackground = useCallback(
-    (fabricInstance: FabricNamespace, item: AvatarItem | null) => {
-      if (!refs.current.canvas) return;
-      const canvas = refs.current.canvas;
-      const color = tinycolor(item?.backgroundColor ?? DEFAULT_BACKGROUND)
-        .toHexString()
-        .toLowerCase();
+  const applyBackground = useCallback((item: AvatarItem | null) => {
+    if (!refs.current.canvas) return;
+    const canvas = refs.current.canvas;
+    const color = tinycolor(item?.backgroundColor ?? DEFAULT_BACKGROUND)
+      .toHexString()
+      .toLowerCase();
 
-      (canvas as fabric.Canvas & {
-        backgroundColor?: string;
-        requestRenderAll?: () => void;
-      }).backgroundColor = color;
+    (canvas as fabric.Canvas & {
+      backgroundColor?: string;
+      requestRenderAll?: () => void;
+    }).backgroundColor = color;
 
-      if (typeof canvas.requestRenderAll === 'function') {
-        canvas.requestRenderAll();
-      } else {
-        canvas.renderAll();
-      }
-    },
-    []
-  );
+    if (typeof canvas.requestRenderAll === 'function') {
+      canvas.requestRenderAll();
+    } else {
+      canvas.renderAll();
+    }
+  }, []);
 
   const updateCanvasImage = useCallback(
     async (item: AvatarItem | null) => {
       const canvas = refs.current.canvas;
       if (!canvas) return;
+
+      const activeImage = refs.current.image;
+      canvas.getObjects().forEach((object) => {
+        if (
+          (object as { type?: string }).type?.toLowerCase() === 'image' &&
+          object !== activeImage
+        ) {
+          canvas.remove(object);
+        }
+      });
 
       if (!item) {
         if (refs.current.image) {
@@ -193,17 +205,78 @@ const Workspace: React.FC = () => {
           refs.current.image = null;
           canvas.renderAll();
         }
+        currentSourceRef.current = null;
+        currentDimensionsRef.current = null;
         return;
       }
-
-      const fabricInstance = await loadFabric();
-      applyBackground(fabricInstance, item);
 
       const source = item.processedUrl ?? item.previewUrl;
       if (!source) {
         return;
       }
 
+      applyBackground(item);
+
+      const existing = refs.current.image;
+      const isSameSource =
+        !!existing && currentSourceRef.current === source;
+
+      const applyTransform = (
+        image: fabric.Image,
+        width: number,
+        height: number
+      ) => {
+        const baseScale = Math.min(OUTPUT_WIDTH / width, OUTPUT_HEIGHT / height);
+        const scale = clamp(
+          baseScale * item.overrides.scale,
+          SCALE_RANGE.min,
+          SCALE_RANGE.max * 1.2
+        );
+
+        image.set({
+          originX: 'center',
+          originY: 'center',
+          left: OUTPUT_WIDTH / 2 + item.overrides.offsetX,
+          top: OUTPUT_HEIGHT / 2 + item.overrides.offsetY,
+          angle: item.overrides.rotation,
+          selectable: false,
+          evented: false,
+          scaleX: scale,
+          scaleY: scale
+        });
+
+        if (image.canvas) {
+          image.setCoords();
+        }
+      };
+
+      if (isSameSource && existing) {
+        const width =
+          item.width ??
+          currentDimensionsRef.current?.width ??
+          existing.width ??
+          OUTPUT_WIDTH;
+        const height =
+          item.height ??
+          currentDimensionsRef.current?.height ??
+          existing.height ??
+          OUTPUT_HEIGHT;
+
+        applyTransform(existing, width, height);
+        currentDimensionsRef.current = { width, height };
+        currentSourceRef.current = source;
+        if (typeof canvas.requestRenderAll === 'function') {
+          canvas.requestRenderAll();
+        } else {
+          canvas.renderAll();
+        }
+        return;
+      }
+
+      const loadToken = imageLoadTokenRef.current + 1;
+      imageLoadTokenRef.current = loadToken;
+
+      const fabricInstance = await loadFabric();
       const fromURL = fabricInstance.Image.fromURL.bind(
         fabricInstance.Image
       );
@@ -228,34 +301,45 @@ const Workspace: React.FC = () => {
 
       if (!image) return;
 
-      const existing = refs.current.image;
+      if (imageLoadTokenRef.current !== loadToken) {
+        return;
+      }
+
       if (existing) {
         canvas.remove(existing);
       }
 
-      const { width = OUTPUT_WIDTH, height = OUTPUT_HEIGHT } = item;
-      const baseScale = Math.min(OUTPUT_WIDTH / width, OUTPUT_HEIGHT / height);
-      const scale = clamp(
-        baseScale * item.overrides.scale,
-        SCALE_RANGE.min,
-        SCALE_RANGE.max * 1.2
-      );
+      const width =
+        item.width ??
+        image.width ??
+        currentDimensionsRef.current?.width ??
+        OUTPUT_WIDTH;
+      const height =
+        item.height ??
+        image.height ??
+        currentDimensionsRef.current?.height ??
+        OUTPUT_HEIGHT;
 
-      image.set({
-        originX: 'center',
-        originY: 'center',
-        left: OUTPUT_WIDTH / 2 + item.overrides.offsetX,
-        top: OUTPUT_HEIGHT / 2 + item.overrides.offsetY,
-        angle: item.overrides.rotation,
-        selectable: false,
-        evented: false
-      });
+      applyTransform(image, width, height);
 
-      image.scale(scale);
-
+      currentSourceRef.current = source;
+      currentDimensionsRef.current = { width, height };
       refs.current.image = image;
       canvas.add(image);
-      canvas.renderAll();
+      canvas.getObjects().forEach((object) => {
+        if (
+          (object as { type?: string }).type?.toLowerCase() === 'image' &&
+          object !== image
+        ) {
+          canvas.remove(object);
+        }
+      });
+      image.setCoords();
+      if (typeof canvas.requestRenderAll === 'function') {
+        canvas.requestRenderAll();
+      } else {
+        canvas.renderAll();
+      }
     },
     [applyBackground]
   );
