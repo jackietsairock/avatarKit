@@ -12,7 +12,7 @@ const App: React.FC = () => {
             </p>
           </div>
           <div className="flex flex-wrap gap-3 text-xs text-slate-400">
-            <span>輸出尺寸：689 × 688 px</span>
+            <span>輸出尺寸：420 × 420 px</span>
             <span>支援：PNG / JPEG / WebP</span>
           </div>
         </div>
