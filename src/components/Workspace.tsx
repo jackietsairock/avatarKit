@@ -227,11 +227,12 @@ const Workspace: React.FC = () => {
         height: number
       ) => {
         const baseScale = Math.min(OUTPUT_WIDTH / width, OUTPUT_HEIGHT / height);
-        const scale = clamp(
-          baseScale * item.overrides.scale,
+        const overrideScale = clamp(
+          item.overrides.scale,
           SCALE_RANGE.min,
-          SCALE_RANGE.max * 1.2
+          SCALE_RANGE.max
         );
+        const scale = baseScale * overrideScale;
 
         image.set({
           originX: 'center',
