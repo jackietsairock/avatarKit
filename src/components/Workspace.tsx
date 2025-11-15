@@ -83,6 +83,7 @@ interface AvatarItem {
   previewUrl: string;
   processedUrl?: string;
   backgroundColor: string;
+  transparentBackground: boolean;
   overrides: ItemOverrides;
   status: AvatarStatus;
   shape: AvatarShape;
@@ -125,6 +126,13 @@ function clamp(value: number, min: number, max: number) {
 
 function resolveBackgroundColor(color?: string) {
   return tinycolor(color ?? DEFAULT_BACKGROUND).toHexString().toLowerCase();
+}
+
+function getCanvasBackgroundColor(item?: AvatarItem | null) {
+  if (item?.transparentBackground) {
+    return 'rgba(0,0,0,0)';
+  }
+  return resolveBackgroundColor(item?.backgroundColor);
 }
 
 const Workspace: React.FC = () => {
@@ -216,7 +224,7 @@ const Workspace: React.FC = () => {
   const applyBackground = useCallback((item: AvatarItem | null) => {
     if (!refs.current.canvas) return;
     const canvas = refs.current.canvas;
-    const color = resolveBackgroundColor(item?.backgroundColor);
+    const color = getCanvasBackgroundColor(item);
 
     (canvas as fabric.Canvas & {
       backgroundColor?: string;
@@ -511,6 +519,7 @@ const Workspace: React.FC = () => {
         originalName: file.name,
         previewUrl: URL.createObjectURL(file),
         backgroundColor: DEFAULT_BACKGROUND,
+        transparentBackground: false,
         overrides: { ...DEFAULT_OVERRIDES },
         status: 'idle',
         shape: 'circle'
@@ -667,7 +676,7 @@ const Workspace: React.FC = () => {
 
     const exportCanvas = new fabricInstance.Canvas(exportCanvasElement, {
       selection: false,
-      backgroundColor: resolveBackgroundColor(item.backgroundColor),
+      backgroundColor: getCanvasBackgroundColor(item),
       fireRightClick: false,
       controlsAboveOverlay: true
     });
@@ -894,6 +903,7 @@ const Workspace: React.FC = () => {
                     <input
                       type="color"
                       value={item.backgroundColor}
+                      disabled={item.transparentBackground}
                       onChange={(event) =>
                         setItems((prev) =>
                           prev.map((candidate) =>
@@ -903,7 +913,27 @@ const Workspace: React.FC = () => {
                           )
                         )
                       }
-                      className="h-8 w-16 cursor-pointer rounded border border-slate-700"
+                      className="h-8 w-16 cursor-pointer rounded border border-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-3 text-xs">
+                    <span className="text-slate-300">透明背景</span>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 cursor-pointer accent-emerald-500"
+                      checked={item.transparentBackground}
+                      onChange={(event) =>
+                        setItems((prev) =>
+                          prev.map((candidate) =>
+                            candidate.id === item.id
+                              ? {
+                                  ...candidate,
+                                  transparentBackground: event.target.checked
+                                }
+                              : candidate
+                          )
+                        )
+                      }
                     />
                   </label>
                   {isProcessing && (
